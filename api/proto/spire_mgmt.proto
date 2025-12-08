@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package spire.mgmt.v1;
+
+option go_package = "github.com/yourorg/spire-mgmt/api/proto";
+
+// WorkloadEntryService manages SPIFFE workload entries
+service WorkloadEntryService {
+  rpc CreateWorkloadEntry(CreateWorkloadEntryRequest) returns (WorkloadEntry);
+  rpc GetWorkloadEntry(GetWorkloadEntryRequest) returns (WorkloadEntry);
+  rpc ListWorkloadEntries(ListWorkloadEntriesRequest) returns (ListWorkloadEntriesResponse);
+  rpc DeleteWorkloadEntry(DeleteWorkloadEntryRequest) returns (DeleteWorkloadEntryResponse);
+  rpc AssignToSites(AssignToSitesRequest) returns (AssignToSitesResponse);
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (SyncStatusResponse);
+}
+
+message WorkloadEntry {
+  string id = 1;
+  string spiffe_id = 2;
+  string parent_id = 3;
+  repeated Selector selectors = 4;
+  int32 ttl = 5;
+  string description = 6;
+}
+
+message Selector {
+  string type = 1;
+  string value = 2;
+}
+
+message CreateWorkloadEntryRequest {
+  string spiffe_id = 1;
+  string parent_id = 2;
+  repeated Selector selectors = 3;
+  repeated string site_ids = 4;
+}
+
+message GetWorkloadEntryRequest {
+  string id = 1;
+}
+
+message ListWorkloadEntriesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListWorkloadEntriesResponse {
+  repeated WorkloadEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message DeleteWorkloadEntryRequest {
+  string id = 1;
+}
+
+message DeleteWorkloadEntryResponse {
+  bool success = 1;
+}
+
+message AssignToSitesRequest {
+  string workload_entry_id = 1;
+  repeated string site_ids = 2;
+}
+
+message AssignToSitesResponse {
+  repeated SiteSyncStatus statuses = 1;
+}
+
+message GetSyncStatusRequest {
+  string workload_entry_id = 1;
+}
+
+message SyncStatusResponse {
+  repeated SiteSyncStatus statuses = 1;
+}
+
+message SiteSyncStatus {
+  string site_id = 1;
+  string site_name = 2;
+  string status = 3;
+  int64 last_sync_at = 4;
+  string sync_error = 5;
+}

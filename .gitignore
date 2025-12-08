@@ -1,0 +1,12 @@
+bin/
+*.exe
+*.test
+*.out
+go.work
+vendor/
+.idea/
+.vscode/
+.DS_Store
+.env
+backstage-plugin/node_modules/
+backstage-plugin/dist/
