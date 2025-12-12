@@ -1,0 +1,25 @@
+replicaCount: 1
+
+image:
+  repository: spire-mgmt-ui
+  tag: alpha
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 3000
+
+# API server URL (must be accessible from browser)
+apiUrl: "http://localhost:8081"
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

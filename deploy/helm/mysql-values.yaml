@@ -1,0 +1,111 @@
+# MySQL Helm values for spire-mgmt
+# Using bitnami/mysql chart
+
+auth:
+  rootPassword: "demo-password"
+  database: "spire_mgmt"
+  username: "spire"
+  password: "spire-password"
+
+primary:
+  # Minimal resources for demo
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  # Configuration
+  configuration: |-
+    [mysqld]
+    default_authentication_plugin=mysql_native_password
+    skip-name-resolve
+    explicit_defaults_for_timestamp
+    basedir=/opt/bitnami/mysql
+    plugin_dir=/opt/bitnami/mysql/lib/plugin
+    port=3306
+    socket=/opt/bitnami/mysql/tmp/mysql.sock
+    datadir=/bitnami/mysql/data
+    tmpdir=/opt/bitnami/mysql/tmp
+    max_allowed_packet=16M
+    bind-address=0.0.0.0
+    pid-file=/opt/bitnami/mysql/tmp/mysqld.pid
+    log-error=/opt/bitnami/mysql/logs/mysqld.log
+    character-set-server=UTF8
+    collation-server=utf8_general_ci
+    slow_query_log=0
+    long_query_time=10.0
+
+# Disable secondary/replication for demo
+secondary:
+  replicaCount: 0
+
+# Initialize database with schema
+initdbScripts:
+  schema.sql: |
+    -- SPIFFE/SPIRE Workload Entry Management System Database Schema
+    USE spire_mgmt;
+
+    -- Sites table
+    CREATE TABLE IF NOT EXISTS sites (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        region VARCHAR(50) NOT NULL,
+        spire_server_address VARCHAR(255) NOT NULL,
+        trust_domain VARCHAR(255) NOT NULL DEFAULT '',
+        last_sync_at TIMESTAMP NULL,
+        status ENUM('active', 'inactive') DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+
+    -- Workload entries table
+    CREATE TABLE IF NOT EXISTS workload_entries (
+        id VARCHAR(36) PRIMARY KEY,
+        spiffe_id VARCHAR(512) NOT NULL UNIQUE,
+        parent_id VARCHAR(512) NOT NULL,
+        selectors JSON NOT NULL,
+        ttl INT DEFAULT 3600,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_by VARCHAR(255) DEFAULT 'demo-user',
+        INDEX idx_spiffe_id (spiffe_id),
+        INDEX idx_parent_id (parent_id)
+    ) ENGINE=InnoDB;
+
+    -- Site workload entry assignments
+    CREATE TABLE IF NOT EXISTS site_workload_entries (
+        site_id VARCHAR(36),
+        workload_entry_id VARCHAR(36),
+        sync_status ENUM('pending', 'synced', 'failed', 'deleting') DEFAULT 'pending',
+        spire_entry_id VARCHAR(255) DEFAULT NULL,
+        last_sync_at TIMESTAMP NULL,
+        sync_error TEXT,
+        PRIMARY KEY (site_id, workload_entry_id),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (workload_entry_id) REFERENCES workload_entries(id) ON DELETE CASCADE,
+        INDEX idx_sync_status (sync_status),
+        INDEX idx_site_status (site_id, sync_status)
+    ) ENGINE=InnoDB;
+
+    -- Audit log
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        actor VARCHAR(255) NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        resource_type VARCHAR(50) NOT NULL,
+        resource_id VARCHAR(255) NOT NULL,
+        details JSON,
+        INDEX idx_timestamp (timestamp),
+        INDEX idx_actor (actor),
+        INDEX idx_resource (resource_type, resource_id)
+    ) ENGINE=InnoDB;

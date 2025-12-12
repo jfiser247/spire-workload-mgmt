@@ -1,0 +1,6 @@
+apiVersion: v2
+name: spire-mgmt-api
+description: SPIRE Workload Entry Management API Server
+type: application
+version: 0.1.0
+appVersion: "alpha"

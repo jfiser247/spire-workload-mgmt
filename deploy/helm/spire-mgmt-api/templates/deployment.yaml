@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "spire-mgmt-api.fullname" . }}
+  labels:
+    {{- include "spire-mgmt-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "spire-mgmt-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "spire-mgmt-api.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: api-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: 8080
+              protocol: TCP
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: GRPC_PORT
+              value: "8080"
+            - name: HTTP_PORT
+              value: "8081"
+            - name: DB_HOST
+              value: {{ .Values.mysql.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.mysql.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.mysql.database | quote }}
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "spire-mgmt-api.fullname" . }}-db
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "spire-mgmt-api.fullname" . }}-db
+                  key: password
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
