@@ -1,0 +1,6 @@
+apiVersion: v2
+name: spire-mgmt-ui
+description: SPIRE Workload Management UI (Backstage-style)
+type: application
+version: 0.1.0
+appVersion: "alpha"

@@ -1,0 +1,68 @@
+# SPIRE Helm values for site-b (EU West)
+# Using spiffe/helm-charts-hardened
+
+global:
+  spire:
+    # Trust domain for this site
+    trustDomain: site-b.demo
+    # Cluster name
+    clusterName: site-b
+
+# SPIRE Server configuration
+spire-server:
+  # Single replica for dev/demo
+  replicaCount: 1
+
+  # Use SQLite for simplicity (no external DB needed)
+  dataStore:
+    sql:
+      databaseType: sqlite3
+      connectionString: /run/spire/data/datastore.sqlite3
+
+  # Controller manager for K8s workload registration
+  controllerManager:
+    enabled: true
+    identities:
+      clusterSPIFFEIDs:
+        default:
+          enabled: true
+
+  # CA configuration
+  ca_subject:
+    country: EU
+    organization: SpireDemo
+    common_name: site-b-ca
+
+  # Service configuration - expose for site agent access
+  service:
+    type: ClusterIP
+    ports:
+      grpc: 8081
+
+  # Persistence for SQLite
+  persistence:
+    enabled: true
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+# SPIRE Agent configuration
+spire-agent:
+  # Enable SPIRE agent
+  enabled: true
+
+  # Agent socket path
+  socketPath: /run/spire/agent-sockets/spire-agent.sock
+
+  # Workload attestors
+  workloadAttestors:
+    k8s:
+      enabled: true
+      skipKubeletVerification: true
+
+# Disable OIDC provider (not needed for demo)
+spiffe-oidc-discovery-provider:
+  enabled: false
+
+# Disable CSI driver (not needed for demo)
+spiffe-csi-driver:
+  enabled: false

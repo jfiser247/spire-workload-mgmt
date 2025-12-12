@@ -2,17 +2,62 @@ syntax = "proto3";
 
 package spire.mgmt.v1;
 
-option go_package = "github.com/yourorg/spire-mgmt/api/proto";
+option go_package = "github.com/yourorg/spire-mgmt/api/proto/gen";
+
+import "google/protobuf/timestamp.proto";
 
 // WorkloadEntryService manages SPIFFE workload entries
 service WorkloadEntryService {
+  // Create a new workload entry
   rpc CreateWorkloadEntry(CreateWorkloadEntryRequest) returns (WorkloadEntry);
+
+  // Get a workload entry by ID
   rpc GetWorkloadEntry(GetWorkloadEntryRequest) returns (WorkloadEntry);
+
+  // List all workload entries with pagination
   rpc ListWorkloadEntries(ListWorkloadEntriesRequest) returns (ListWorkloadEntriesResponse);
+
+  // Delete a workload entry (cascades to all sites)
   rpc DeleteWorkloadEntry(DeleteWorkloadEntryRequest) returns (DeleteWorkloadEntryResponse);
+
+  // Assign a workload entry to additional sites
   rpc AssignToSites(AssignToSitesRequest) returns (AssignToSitesResponse);
+
+  // Get sync status for a workload entry across all assigned sites
   rpc GetSyncStatus(GetSyncStatusRequest) returns (SyncStatusResponse);
 }
+
+// SiteService manages site configurations
+service SiteService {
+  // List all configured sites
+  rpc ListSites(ListSitesRequest) returns (ListSitesResponse);
+
+  // Get a site by ID
+  rpc GetSite(GetSiteRequest) returns (Site);
+}
+
+// SiteAgentService is used by site agents to sync entries
+service SiteAgentService {
+  // Poll for entries that need to be synced to this site
+  rpc PollEntries(PollEntriesRequest) returns (PollEntriesResponse);
+
+  // Report the result of syncing an entry
+  rpc ReportSyncResult(ReportSyncResultRequest) returns (ReportSyncResultResponse);
+
+  // Get entries marked for deletion from this site
+  rpc PollDeletions(PollDeletionsRequest) returns (PollDeletionsResponse);
+
+  // Report deletion result
+  rpc ReportDeletionResult(ReportDeletionResultRequest) returns (ReportDeletionResultResponse);
+}
+
+// AuditService provides access to audit logs
+service AuditService {
+  // List audit log entries
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+}
+
+// ================ Core Messages ================
 
 message WorkloadEntry {
   string id = 1;
@@ -21,18 +66,56 @@ message WorkloadEntry {
   repeated Selector selectors = 4;
   int32 ttl = 5;
   string description = 6;
+  string created_by = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  // Site sync statuses
+  repeated SiteSyncStatus site_statuses = 10;
 }
 
 message Selector {
-  string type = 1;
-  string value = 2;
+  string type = 1;   // e.g., "k8s:ns", "k8s:sa", "k8s:pod-label"
+  string value = 2;  // e.g., "production", "api-server"
 }
+
+message Site {
+  string id = 1;
+  string name = 2;
+  string region = 3;
+  string spire_server_address = 4;
+  string trust_domain = 5;
+  string status = 6;  // active, inactive
+  google.protobuf.Timestamp last_sync_at = 7;
+}
+
+message SiteSyncStatus {
+  string site_id = 1;
+  string site_name = 2;
+  string status = 3;  // pending, synced, failed, deleting
+  string spire_entry_id = 4;
+  google.protobuf.Timestamp last_sync_at = 5;
+  string sync_error = 6;
+}
+
+message AuditLogEntry {
+  int64 id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string actor = 3;
+  string action = 4;  // create, update, delete, assign
+  string resource_type = 5;  // workload_entry, site
+  string resource_id = 6;
+  string details = 7;  // JSON details
+}
+
+// ================ WorkloadEntryService Messages ================
 
 message CreateWorkloadEntryRequest {
   string spiffe_id = 1;
   string parent_id = 2;
   repeated Selector selectors = 3;
   repeated string site_ids = 4;
+  int32 ttl = 5;
+  string description = 6;
 }
 
 message GetWorkloadEntryRequest {
@@ -42,11 +125,15 @@ message GetWorkloadEntryRequest {
 message ListWorkloadEntriesRequest {
   int32 page_size = 1;
   string page_token = 2;
+  // Optional filters
+  string site_id = 3;      // Filter by site
+  string spiffe_id_prefix = 4;  // Filter by SPIFFE ID prefix
 }
 
 message ListWorkloadEntriesResponse {
   repeated WorkloadEntry entries = 1;
   string next_page_token = 2;
+  int32 total_count = 3;
 }
 
 message DeleteWorkloadEntryRequest {
@@ -55,6 +142,7 @@ message DeleteWorkloadEntryRequest {
 
 message DeleteWorkloadEntryResponse {
   bool success = 1;
+  string message = 2;
 }
 
 message AssignToSitesRequest {
@@ -74,10 +162,92 @@ message SyncStatusResponse {
   repeated SiteSyncStatus statuses = 1;
 }
 
-message SiteSyncStatus {
+// ================ SiteService Messages ================
+
+message ListSitesRequest {
+  // Optional filter by status
+  string status = 1;  // active, inactive, or empty for all
+}
+
+message ListSitesResponse {
+  repeated Site sites = 1;
+}
+
+message GetSiteRequest {
+  string id = 1;
+}
+
+// ================ SiteAgentService Messages ================
+
+message PollEntriesRequest {
   string site_id = 1;
-  string site_name = 2;
-  string status = 3;
-  int64 last_sync_at = 4;
-  string sync_error = 5;
+  // Maximum number of entries to return
+  int32 max_entries = 2;
+}
+
+message PollEntriesResponse {
+  repeated PendingEntry entries = 1;
+}
+
+message PendingEntry {
+  string workload_entry_id = 1;
+  string spiffe_id = 2;
+  string parent_id = 3;
+  repeated Selector selectors = 4;
+  int32 ttl = 5;
+}
+
+message ReportSyncResultRequest {
+  string site_id = 1;
+  string workload_entry_id = 2;
+  bool success = 3;
+  string spire_entry_id = 4;  // SPIRE-assigned entry ID if success
+  string error_message = 5;   // Error message if failed
+}
+
+message ReportSyncResultResponse {
+  bool acknowledged = 1;
+}
+
+message PollDeletionsRequest {
+  string site_id = 1;
+  int32 max_entries = 2;
+}
+
+message PollDeletionsResponse {
+  repeated DeletionEntry entries = 1;
+}
+
+message DeletionEntry {
+  string workload_entry_id = 1;
+  string spire_entry_id = 2;  // SPIRE entry ID to delete
+}
+
+message ReportDeletionResultRequest {
+  string site_id = 1;
+  string workload_entry_id = 2;
+  bool success = 3;
+  string error_message = 4;
+}
+
+message ReportDeletionResultResponse {
+  bool acknowledged = 1;
+}
+
+// ================ AuditService Messages ================
+
+message ListAuditLogsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  // Optional filters
+  string resource_type = 3;
+  string resource_id = 4;
+  string actor = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp end_time = 7;
+}
+
+message ListAuditLogsResponse {
+  repeated AuditLogEntry entries = 1;
+  string next_page_token = 2;
 }

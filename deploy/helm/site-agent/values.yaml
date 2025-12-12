@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  repository: site-agent
+  tag: alpha
+  pullPolicy: IfNotPresent
+
+# Site configuration - set these when installing
+siteId: ""
+siteName: ""
+
+# API server connection
+apiServer:
+  address: "api-spire-mgmt-api.spire-mgmt.svc.cluster.local:8081"
+
+# SPIRE server connection - uses the local SPIRE server in the namespace
+spireServer:
+  socketPath: "/run/spire/agent-sockets/spire-agent.sock"
+
+# Sync configuration
+sync:
+  intervalSeconds: 10
+  maxEntries: 10
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+serviceAccount:
+  create: true
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

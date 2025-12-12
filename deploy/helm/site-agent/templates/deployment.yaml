@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "site-agent.fullname" . }}
+  labels:
+    {{- include "site-agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "site-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "site-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "site-agent.serviceAccountName" . }}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: SITE_ID
+              value: {{ .Values.siteId | quote }}
+            - name: SITE_NAME
+              value: {{ .Values.siteName | quote }}
+            - name: API_SERVER_ADDRESS
+              value: {{ .Values.apiServer.address | quote }}
+            - name: SPIRE_SOCKET_PATH
+              value: {{ .Values.spireServer.socketPath | quote }}
+            - name: SYNC_INTERVAL_SECONDS
+              value: {{ .Values.sync.intervalSeconds | quote }}
+            - name: MAX_ENTRIES
+              value: {{ .Values.sync.maxEntries | quote }}
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/agent-sockets
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent-sockets
+            type: DirectoryOrCreate
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

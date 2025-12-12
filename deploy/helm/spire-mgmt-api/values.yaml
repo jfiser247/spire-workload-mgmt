@@ -1,0 +1,30 @@
+replicaCount: 1
+
+image:
+  repository: spire-mgmt-api
+  tag: alpha
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  grpcPort: 8080
+  httpPort: 8081
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+mysql:
+  host: mysql.spire-mgmt.svc.cluster.local
+  port: 3306
+  database: spire_mgmt
+  user: root
+  password: demo-password
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
